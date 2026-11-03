@@ -1,3 +1,4 @@
+using MSCLoader;
 using MSCCoop.Net;
 using UnityEngine;
 
@@ -95,7 +96,10 @@ sealed class AvatarGestures
         if (next == null)
             return;
         if (next.Prop != null)
+        {
             next.Prop.SetActive(true);
+            Wake(next.Prop);
+        }
         if (next.Target == null)
             return;
         next.Target.CrossFade(next.On, Fade);
@@ -138,7 +142,13 @@ sealed class AvatarGestures
         var fluid = camera == null ? null : camera.Find("Piss/Fluid/Fluid");
         var pelvis = skeleton.Find("pelvis");
         if (fluid == null || pelvis == null)
+        {
+            ModConsole.Warning("Co-op: the pee stream was not found, others will not see it.");
+            if (camera != null && camera.Find("Piss") != null)
+                Describe("Piss", camera.Find("Piss"));
             return null;
+        }
+        Describe("pee stream", fluid);
         var stream = Strip((GameObject)Object.Instantiate(fluid.gameObject));
         stream.transform.SetParent(root, false);
         var facing = Quaternion.Inverse(modelRotation);
@@ -153,6 +163,46 @@ sealed class AvatarGestures
             copy.SetActive(true);
         }
         return stream;
+    }
+
+    // The game starts the stream's particles from its own logic, which the copy no longer has, so
+    // they are started here whenever the prop is shown.
+    static void Wake(GameObject prop)
+    {
+        foreach (var system in prop.GetComponentsInChildren<ParticleSystem>(true))
+        {
+            system.gameObject.SetActive(true);
+            system.enableEmission = true;
+            system.loop = true;
+            system.Play(true);
+        }
+        foreach (var emitter in prop.GetComponentsInChildren<ParticleEmitter>(true))
+        {
+            emitter.gameObject.SetActive(true);
+            emitter.emit = true;
+        }
+        foreach (var renderer in prop.GetComponentsInChildren<Renderer>(true))
+            renderer.enabled = true;
+        foreach (var audio in prop.GetComponentsInChildren<AudioSource>(true))
+        {
+            audio.enabled = true;
+            audio.loop = true;
+            audio.spatialBlend = 1f;
+            if (!audio.isPlaying)
+                audio.Play();
+        }
+    }
+
+    static void Describe(string label, Transform t)
+    {
+        var sb = new System.Text.StringBuilder("Co-op: " + label + ":");
+        foreach (var child in t.GetComponentsInChildren<Transform>(true))
+        {
+            sb.Append(" | ").Append(child.name).Append(child.gameObject.activeSelf ? "" : "(off)").Append(':');
+            foreach (var c in child.GetComponents<Component>())
+                sb.Append(' ').Append(c == null ? "?" : c.GetType().Name);
+        }
+        Debug.Log(sb.ToString());
     }
 
     // Only what can be seen and heard stays: the copies must not run the game's logic or collide.

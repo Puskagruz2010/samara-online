@@ -72,7 +72,9 @@ class LevelWatcher : MonoBehaviour
 class ReconCommand(ReconMod mod) : ConsoleCommand
 {
     public override string Name => "recon";
-    public override string Help => "recon dump | recon ids [label]";
+    public override string Help => "recon dump | recon ids [label] | recon trace on [radius] | recon trace off | recon note TEXT";
+
+    FsmTracer tracer;
 
     public override void Run(string[] args)
     {
@@ -83,6 +85,23 @@ class ReconCommand(ReconMod mod) : ConsoleCommand
             {
                 case "dump":
                     mod.WriteFullDump();
+                    break;
+                case "trace" when args.Length > 1 && args[1] == "on":
+                    tracer?.Stop();
+                    var radius = args.Length > 2 && float.TryParse(args[2], out var r) ? r : 15f;
+                    tracer = FsmTracer.Start(mod.NewOutputDir("trace"), radius);
+                    ModConsole.Print("Recon: tracing FSMs within " + radius + " m to " + tracer.File);
+                    break;
+                case "trace" when args.Length > 1 && args[1] == "off":
+                    if (tracer != null)
+                    {
+                        ModConsole.Print("Recon: trace saved to " + tracer.File);
+                        tracer.Stop();
+                        tracer = null;
+                    }
+                    break;
+                case "note" when tracer != null:
+                    tracer.Note(string.Join(" ", args, 1, args.Length - 1));
                     break;
                 case "ids":
                     mod.WriteIds(args.Length > 1 ? args[1] : "manual");
