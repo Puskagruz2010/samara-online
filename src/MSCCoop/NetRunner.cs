@@ -33,6 +33,7 @@ sealed class NetRunner : MonoBehaviour
     readonly ObjectSync objects = new();
     PlayerSync players;
     VoiceChat voice;
+    SoundSync sounds;
     PassengerSeat passenger;
     FsmSync fsms;
     readonly WorldSync world = new();
@@ -69,6 +70,7 @@ sealed class NetRunner : MonoBehaviour
         players = new PlayerSync(objects.Registry, passenger);
         players.Init();
         voice = new VoiceChat(players);
+        sounds = new SoundSync(players);
         fsms = new FsmSync(objects.Registry, objects);
         spawns = new SpawnSync(objects.Registry, fsms);
         shared = new SharedValueSync(objects.Registry);
@@ -191,6 +193,7 @@ sealed class NetRunner : MonoBehaviour
         flow.Attach(session, config);
         players.Attach(session);
         voice.Attach(session);
+        sounds.Attach(session);
         objects.Attach(session);
         fsms.Attach(session);
         world.Attach(session);
@@ -222,6 +225,7 @@ sealed class NetRunner : MonoBehaviour
         flow.Detach();
         players.Detach();
         voice.Detach();
+        sounds.Detach();
         objects.Detach();
         fsms.Detach();
         world.Detach();
@@ -341,6 +345,7 @@ sealed class NetRunner : MonoBehaviour
         flow.OnGameReady();
         players.OnGameReady();
         voice.OnGameReady();
+        sounds.OnGameReady();
         passenger.OnGameReady();
         if (session != null)
             session.HoldGameMessages = false;

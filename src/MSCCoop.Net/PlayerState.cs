@@ -20,6 +20,7 @@ public enum Gesture : byte
     Push,
     Smoke,
     Urinate,
+    Drink,
 }
 
 public struct PlayerState
@@ -70,7 +71,7 @@ public struct PlayerState
             Flags = (PlayerFlags)r.Read(FlagBits),
         };
         var gesture = r.Read(GestureBits);
-        s.Gesture = gesture <= (uint)Gesture.Urinate ? (Gesture)gesture : Gesture.None;
+        s.Gesture = gesture <= (uint)Gesture.Drink ? (Gesture)gesture : Gesture.None;
         if (r.ReadBool())
             s.Vehicle = r.ReadUInt();
         return s;

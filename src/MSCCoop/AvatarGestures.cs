@@ -17,6 +17,8 @@ sealed class AvatarGestures
     const string LeftArm = Spine + "/collar_left";
     const string LeftFingers = LeftArm + "/shoulder_left/arm_left/hand_left/finger_left";
     const string SmokerArm = "JOBS/HouseShit1/LOD/ShitNPC/ShitMan1/skeleton/pelvis/RotationPivot/spine_middle/spine_upper/collar_left";
+    const string DrinkerArm = "JOBS/HouseShit1/LOD/ShitNPC/ShitMan1/skeleton/pelvis/RotationPivot/spine_middle/spine_upper/collar_right";
+    const string RightHand = RightArm + "/shoulder_right/arm_right/hand_right";
     const string PlayerCamera = "PLAYER/Pivot/AnimPivot/Camera/FPSCamera";
     const float StreamAhead = 0.15f;
 
@@ -30,7 +32,7 @@ sealed class AvatarGestures
         public GameObject Prop;
     }
 
-    readonly Move[] moves = new Move[(int)Gesture.Urinate + 1];
+    readonly Move[] moves = new Move[(int)Gesture.Drink + 1];
     Gesture current;
 
     public bool Has(Gesture gesture) => moves[(int)gesture]?.Target != null;
@@ -46,6 +48,9 @@ sealed class AvatarGestures
         gestures.Add(Gesture.Smoke, skeleton, LeftArm, SmokerArm, "fat_handsleft_smoke", null, WrapMode.Loop);
         gestures.AddProp(Gesture.Smoke, CopyProp(SmokerArm + "/shoulder_left/arm_left/hand_left/finger_left/SmokingLeft", skeleton.Find(LeftFingers)));
         gestures.AddProp(Gesture.Urinate, CreateStream(root, skeleton, modelRotation));
+        // The men waiting at the septic tank jobs drink beer with their right hand.
+        gestures.Add(Gesture.Drink, skeleton, RightArm, DrinkerArm, "fat_handsright_drink", null, WrapMode.Loop);
+        gestures.AddProp(Gesture.Drink, CopyProp(DrinkerArm + "/shoulder_right/arm_right/hand_right/BottleBeerFly", skeleton.Find(RightHand)));
         return gestures;
     }
 

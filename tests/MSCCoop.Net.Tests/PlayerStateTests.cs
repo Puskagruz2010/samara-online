@@ -67,15 +67,19 @@ public class PlayerStateTests
     }
 
     [Fact]
-    public void UnknownGestureReadsAsNone()
+    public void EveryGestureFitsTheWire()
     {
-        var buffer = new byte[64];
-        var w = new BitWriter(buffer);
-        new PlayerState { Slot = 1, Gesture = (Gesture)7 }.Write(w);
+        // The gesture field is three bits wide; Drink takes the last value it can hold.
+        for (var g = Gesture.None; g <= Gesture.Drink; g++)
+        {
+            var buffer = new byte[64];
+            var w = new BitWriter(buffer);
+            new PlayerState { Slot = 1, Gesture = g }.Write(w);
 
-        var read = PlayerState.Read(new BitReader(buffer, w.Length));
-        Assert.Equal(Gesture.None, read.Gesture);
-        Assert.Equal(1, read.Slot);
+            var read = PlayerState.Read(new BitReader(buffer, w.Length));
+            Assert.Equal(g, read.Gesture);
+            Assert.Equal(1, read.Slot);
+        }
     }
 
     [Fact]

@@ -30,6 +30,7 @@ sealed class PlayerSync(ObjectRegistry registry, PassengerSeat passenger)
     FsmBool inMenu;
     PlayMakerFSM functions;
     PlayMakerFSM urinate;
+    PlayMakerFSM drink;
     GameObject smoking;
     Gesture moment;
     float momentUntil;
@@ -218,6 +219,8 @@ sealed class PlayerSync(ObjectRegistry registry, PassengerSeat passenger)
         functions = camera == null ? null : camera.GetPlayMaker("PlayerFunctions");
         if (functions == null)
             return;
+        var drinkHand = camera.transform.Find("FPSCamera/Drink");
+        drink = drinkHand == null ? null : drinkHand.gameObject.GetPlayMaker("Drink");
         var piss = camera.transform.Find("Piss");
         urinate = piss == null ? null : piss.gameObject.GetPlayMaker("Logic");
         var cigarette = camera.transform.Find("FPSCamera/Smoking");
@@ -258,6 +261,15 @@ sealed class PlayerSync(ObjectRegistry registry, PassengerSeat passenger)
                 case "On":
                     return Gesture.Push;
             }
+        }
+        // Drinking anything runs the Drink FSM through an "Activate" state (the mosquito spray is
+        // "Activate 4") and its "Drink anim" follow-up; juice, kilju and coffee have their own.
+        if (drink != null)
+        {
+            var state = drink.ActiveStateName;
+            if ((state.StartsWith("Activate") && state != "Activate 4") || state.StartsWith("Drink anim")
+                || state == "Juice" || state == "Kilju" || state == "HomeCoffee")
+                return Gesture.Drink;
         }
         // The stream runs in these states of the game's Piss logic; the cigarette is out while
         // its Smoking object is active.
