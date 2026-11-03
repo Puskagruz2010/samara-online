@@ -19,7 +19,9 @@ class TestCommand(string marksFile) : ConsoleCommand
 
     public override string Help =>
         "test money AMOUNT | test needs | test keys | test tp VEHICLE|player|MARK | test bring VEHICLE | " +
-        "test mark NAME | test marks";
+        "test mark NAME | test marks | test bringall";
+
+    static readonly string[] Vehicles = { "SATSUMA", "HAYOSIKO", "FERNDALE", "GIFU", "RCO_RUSCKO", "KEKMET", "JONNEZ" };
 
     public override void Run(string[] rawArgs)
     {
@@ -48,6 +50,9 @@ class TestCommand(string marksFile) : ConsoleCommand
                 break;
             case "bring" when target.Length > 0:
                 Bring(target);
+                break;
+            case "bringall":
+                BringAll();
                 break;
             case "mark" when target.Length > 0:
                 Mark(target);
@@ -104,6 +109,37 @@ class TestCommand(string marksFile) : ConsoleCommand
         root.position = position;
         root.rotation = rotation;
         ModConsole.Print("brought " + root.name);
+    }
+
+    // Lines every vehicle up beside the player, a few metres apart, for a session that starts with
+    // everything at home.
+    static void BringAll()
+    {
+        var player = GameObject.Find("PLAYER");
+        if (player == null)
+            return;
+        var look = player.transform.forward;
+        var forward = new Vector3(look.x, 0, look.z).normalized;
+        var right = Vector3.Cross(Vector3.up, forward);
+        var rotation = Quaternion.LookRotation(forward);
+        var slot = 0;
+        foreach (var name in Vehicles)
+        {
+            var root = FindRoot(name);
+            if (root == null)
+                continue;
+            var body = root.GetComponent<Rigidbody>();
+            if (body != null)
+            {
+                body.velocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+            var side = (slot % 2 == 0 ? 1 : -1) * (slot / 2 + 1) * 4.5f;
+            root.position = player.transform.position + forward * 8 + right * side + Vector3.up * 1.5f;
+            root.rotation = rotation;
+            slot++;
+            ModConsole.Print("brought " + root.name);
+        }
     }
 
     void Mark(string name)

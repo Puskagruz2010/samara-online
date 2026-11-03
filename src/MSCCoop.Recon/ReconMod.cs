@@ -9,7 +9,7 @@ public class ReconMod : Mod
 {
     public override string ID => "MSCCoopRecon";
     public override string Name => "MSC Co-op Recon";
-    public override string Version => "0.1.0";
+    public override string Version => "0.1.1";
     public override string Author => "MSC Co-op contributors";
     public override string Description => "Developer tool. Dumps the scene hierarchy and every PlayMaker FSM to disk, and adds test shortcuts.";
 
