@@ -6,7 +6,7 @@
 
 ## Скачать
 
-Последняя версия: **[Releases → SamaraOnline.zip](../../releases/latest)**. Инструкция по установке лежит внутри архива, в файле `КАК УСТАНОВИТЬ.txt`.
+Последняя версия: **[SamaraOnline.zip](https://github.com/Puskagruz2010/samara-online/raw/main/release/SamaraOnline.zip)** (нажми, и скачивание начнётся само). Инструкция по установке лежит внутри архива, в файле `КАК УСТАНОВИТЬ.txt`.
 
 Если коротко:
 1. Поставить [MSCLoader](https://github.com/piotrulos/MSCModLoader/releases) (1.4.2 или новее).
