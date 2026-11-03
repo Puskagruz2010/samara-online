@@ -1,0 +1,6 @@
+<Project>
+  <!-- local offline build: no NuGet; net35 reference assemblies are the game's own Mono profile -->
+  <ItemGroup>
+    <PackageReference Remove="Microsoft.NETFramework.ReferenceAssemblies" />
+  </ItemGroup>
+</Project>

@@ -194,6 +194,8 @@ sealed class PlayerSync(ObjectRegistry registry, PassengerSeat passenger)
         pitches[state.Slot] = state.Pitch;
     }
 
+    public Avatar GetAvatar(int slot) => slot >= 0 && slot < avatars.Length ? avatars[slot] : null;
+
     public void LateUpdate(float deltaTime)
     {
         for (var slot = 0; slot < avatars.Length; slot++)

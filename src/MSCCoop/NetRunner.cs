@@ -32,6 +32,7 @@ sealed class NetRunner : MonoBehaviour
     GameFlow flow;
     readonly ObjectSync objects = new();
     PlayerSync players;
+    VoiceChat voice;
     PassengerSeat passenger;
     FsmSync fsms;
     readonly WorldSync world = new();
@@ -67,6 +68,7 @@ sealed class NetRunner : MonoBehaviour
         passenger = new PassengerSeat(objects.Registry);
         players = new PlayerSync(objects.Registry, passenger);
         players.Init();
+        voice = new VoiceChat(players);
         fsms = new FsmSync(objects.Registry, objects);
         spawns = new SpawnSync(objects.Registry, fsms);
         shared = new SharedValueSync(objects.Registry);
@@ -188,6 +190,7 @@ sealed class NetRunner : MonoBehaviour
         session = new Session(sim, config);
         flow.Attach(session, config);
         players.Attach(session);
+        voice.Attach(session);
         objects.Attach(session);
         fsms.Attach(session);
         world.Attach(session);
@@ -218,6 +221,7 @@ sealed class NetRunner : MonoBehaviour
     {
         flow.Detach();
         players.Detach();
+        voice.Detach();
         objects.Detach();
         fsms.Detach();
         world.Detach();
@@ -304,6 +308,7 @@ sealed class NetRunner : MonoBehaviour
         flow.Update();
         passenger.Update();
         players.Update(Time.deltaTime);
+        voice.Update();
         objects.Update();
         world.Update();
         fsms.Update();
@@ -335,6 +340,7 @@ sealed class NetRunner : MonoBehaviour
         shared.OnGameReady();
         flow.OnGameReady();
         players.OnGameReady();
+        voice.OnGameReady();
         passenger.OnGameReady();
         if (session != null)
             session.HoldGameMessages = false;
@@ -370,6 +376,7 @@ sealed class NetRunner : MonoBehaviour
             lobby?.SetJoinable(Application.loadedLevelName == "MainMenu");
         flow.OnLevelLoaded();
         players.OnLevelLoaded();
+        voice.OnLevelLoaded();
         passenger.OnLevelLoaded();
         objects.OnLevelLoaded();
         world.OnLevelLoaded();
@@ -407,6 +414,8 @@ sealed class NetRunner : MonoBehaviour
             }
             status.AppendLine();
         }
+        if (voice.Talking)
+            status.Append(voice.RadioTalking ? "[РАЦИЯ] " : "[ГОВОРИШЬ] ").AppendLine();
         if (fsms != null)
             status.Append("fsm sent ").Append(fsms.Sent).Append(" applied ").Append(fsms.Applied).Append(" unknown ").Append(fsms.Unknown).Append(" deferred ").Append(fsms.Deferred).AppendLine();
         // Everything this mod does per frame, physics steps included, so its share of a frame is visible.

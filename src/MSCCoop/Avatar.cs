@@ -291,6 +291,20 @@ sealed class Avatar
 
     public void Destroy() => Object.Destroy(root);
 
+    public Transform Head => head >= 0 ? bones[head] : root.transform;
+
+    // The name tag turns yellow while the player talks nearby and green on the radio.
+    public void SetSpeaking(bool speaking, bool radio)
+    {
+        if (nameText == null)
+            nameText = nameTag.GetComponent<TextMesh>();
+        if (nameText == null)
+            return;
+        nameText.color = !speaking ? Color.white : radio ? new Color(0.4f, 1f, 0.4f) : new Color(1f, 0.85f, 0.2f);
+    }
+
+    TextMesh nameText;
+
     void ResetPoseBones()
     {
         var pose = seated ? seatedPose : standingPose;

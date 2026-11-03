@@ -10,17 +10,18 @@ namespace MSCCoop;
 
 public class CoopMod : Mod
 {
-    public override string ID => "MSCCoop";
-    public override string Name => "MSC Co-op";
-    public override string Version => "0.2.0";
-    public override string Author => "kubilay";
-    public override string Description => "Co-op multiplayer over Steam.";
+    public override string ID => "SamaraOnline";
+    public override string Name => "Samara Online";
+    public override string Version => "0.2.0-samara.1";
+    public override string Author => "kubilay (MSC Co-op), Samara fork";
+    public override string Description => "Co-op over Steam with proximity voice. Fork of MSC Co-op (CC BY-NC-SA 4.0).";
 
     NetRunner runner;
     bool commandAdded;
 
     public override void ModSetup()
     {
+        SetupFunction(Setup.ModSettings, VoiceChat.CreateSettings);
         SetupFunction(Setup.OnMenuLoad, Init);
         SetupFunction(Setup.PostLoad, () => runner.OnGameReady());
     }
