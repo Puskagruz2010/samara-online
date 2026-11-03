@@ -206,6 +206,17 @@ sealed class Avatar
         gestureWeight = Mathf.MoveTowards(gestureWeight, gesture != Gesture.None ? 1f : 0f, deltaTime * GestureSpeed);
         if (gestureWeight > 0 && !clips.Has(shown))
             PoseArms(right);
+        // Drunk: the upper body rolls and nods on a slow, uneven rhythm that grows with the drinking.
+        if (drunk > 0.3f && chest >= 0)
+        {
+            sway += deltaTime;
+            var amount = Mathf.Clamp01(drunk / 3f) * 14f;
+            var roll = (Mathf.Sin(sway * 1.3f) + 0.5f * Mathf.Sin(sway * 2.9f)) * amount;
+            var nod = Mathf.Sin(sway * 0.8f) * amount * 0.5f;
+            bones[chest].rotation = Quaternion.AngleAxis(roll, facing * Vector3.forward) * Quaternion.AngleAxis(nod, right) * bones[chest].rotation;
+        }
+        if (breath != null && head >= 0)
+            breath.transform.position = bones[head].position + facing * Vector3.forward * 0.15f + Vector3.up * 0.05f;
         if (headPivot >= 0)
             bones[headPivot].rotation = facing * Quaternion.Euler(pitch, 0, 0);
         else if (head >= 0)
@@ -289,7 +300,12 @@ sealed class Avatar
         knee.rotation = Quaternion.FromToRotation(ankle.position - knee.position, target - knee.position) * knee.rotation;
     }
 
-    public void Destroy() => Object.Destroy(root);
+    public void Destroy()
+    {
+        Object.Destroy(root);
+        if (breath != null)
+            Object.Destroy(breath);
+    }
 
     public Transform Head => head >= 0 ? bones[head] : root.transform;
 
@@ -304,6 +320,57 @@ sealed class Avatar
     }
 
     TextMesh nameText;
+    float drunk;
+    float sway;
+    GameObject breath;
+    ParticleEmitter[] breathEmitters;
+
+    public void SetExtras(float drunkLevel, bool exhale)
+    {
+        drunk = drunkLevel;
+        if (breath == null)
+            CreateBreath();
+        if (breathEmitters == null)
+            return;
+        foreach (var emitter in breathEmitters)
+            emitter.emit = exhale;
+    }
+
+    // The player's own breath smoke, moved in front of the avatar's mouth.
+    void CreateBreath()
+    {
+        var source = GameObject.Find("PLAYER/Pivot/AnimPivot/Camera/FPSCamera/FPSCamera/Smoking");
+        var smoke = source == null ? null : source.transform.Find("BreathSmoke");
+        if (smoke == null)
+        {
+            // The Smoking object is off until a cigarette is lit; search the inactive scene instead.
+            foreach (Transform t in Resources.FindObjectsOfTypeAll(typeof(Transform)))
+            {
+                if (t.name == "BreathSmoke" && t.parent != null && t.parent.name == "Smoking" && t.gameObject.hideFlags == HideFlags.None)
+                {
+                    smoke = t;
+                    break;
+                }
+            }
+        }
+        if (smoke == null)
+        {
+            // Nothing to copy; an empty marker stops the search from running again every message.
+            breath = new GameObject("MSCCoop Breath");
+            breath.transform.SetParent(root.transform, false);
+            return;
+        }
+        var copy = (GameObject)Object.Instantiate(smoke.gameObject);
+        foreach (var behaviour in copy.GetComponentsInChildren<MonoBehaviour>(true))
+            Object.DestroyImmediate(behaviour);
+        copy.SetActive(true);
+        copy.transform.SetParent(Head, false);
+        copy.transform.localPosition = Vector3.zero;
+        breath = copy;
+        breathEmitters = copy.GetComponentsInChildren<ParticleEmitter>(true);
+        foreach (var emitter in breathEmitters)
+            emitter.emit = false;
+    }
 
     void ResetPoseBones()
     {

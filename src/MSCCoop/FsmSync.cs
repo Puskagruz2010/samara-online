@@ -36,7 +36,14 @@ sealed class FsmSync(ObjectRegistry registry, ObjectSync objects)
         new[] { "Longs", "Shorts" },
         new[] { "Off", "Slow", "Fast" },
         new[] { "On", "Off" },
+        // Light switches, taps, the shower valve, tractor and truck knobs, the main fuse switch.
+        new[] { "ON", "OFF" },
     };
+
+    // Some ON/OFF switches keep what they control in a bool and only turn the knob in ON and OFF
+    // (house light switches light their lamps from "Switch" when they return to waiting), so the
+    // bool is set to match before the state is entered.
+    static readonly string[] SwitchBools = { "Switch", "SwitchOn", "Valve" };
 
     // The horn sounds for as long as its state is active, which ends on the local mouse release.
     static readonly string[] HornStates = { "State 1", "Mouse over 2" };
@@ -190,6 +197,12 @@ sealed class FsmSync(ObjectRegistry registry, ObjectSync objects)
             case "Knob" when fsm.FsmVariables.FindFsmGameObject("Windows") != null:
                 HookSteps(fsm, IsWindowStep);
                 break;
+            // Flashlight, portable radio and car stereo power knobs.
+            case "Knob":
+            // The shower valve.
+            case "Switch":
+                HookToggle(fsm);
+                break;
             case "Usage" when fsm.GetState("Activate dash") != null:
                 HookSteps(fsm, IsTurnSignalStep);
                 break;
@@ -304,6 +317,15 @@ sealed class FsmSync(ObjectRegistry registry, ObjectSync objects)
         if (toggleState.TryGetValue(fsm, out var current) && current == index)
             return;
         toggleState[fsm] = index;
+        if (pair.Length == 2 && pair[0] == "ON")
+        {
+            foreach (var name in SwitchBools)
+            {
+                var flag = fsm.FsmVariables.FindFsmBool(name);
+                if (flag != null)
+                    flag.Value = index == 0;
+            }
+        }
         Apply(fsm, ToggleEvent + index);
     }
 
