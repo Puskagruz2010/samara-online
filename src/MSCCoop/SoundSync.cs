@@ -20,6 +20,10 @@ sealed class SoundSync(PlayerSync players)
 
     Session session;
     int hooked;
+    // FSMs on objects the game has not switched on yet (the drinking hand) cannot load their actions
+    // until PlayMaker initialises them, which happens the first time they run; they are hooked then.
+    readonly System.Collections.Generic.List<PlayMakerFSM> pending = new();
+    float nextRetry;
 
     public int Played { get; private set; }
 
@@ -34,10 +38,43 @@ sealed class SoundSync(PlayerSync players)
     public void OnGameReady()
     {
         hooked = 0;
+        pending.Clear();
         var player = GameObject.Find("PLAYER");
         if (player == null)
             return;
         foreach (var fsm in player.GetComponentsInChildren<PlayMakerFSM>(true))
+        {
+            if (fsm.Fsm == null || !fsm.Fsm.Initialized)
+                pending.Add(fsm);
+            else
+                Hook(fsm);
+        }
+        Debug.Log("Co-op: " + hooked + " player sounds shared, " + pending.Count + " FSMs wait for the game to start them.");
+    }
+
+    public void Update()
+    {
+        if (pending.Count == 0 || Time.unscaledTime < nextRetry)
+            return;
+        nextRetry = Time.unscaledTime + 1f;
+        for (var i = pending.Count - 1; i >= 0; i--)
+        {
+            var fsm = pending[i];
+            if (fsm == null)
+            {
+                pending.RemoveAt(i);
+                continue;
+            }
+            if (fsm.Fsm == null || !fsm.Fsm.Initialized)
+                continue;
+            pending.RemoveAt(i);
+            Hook(fsm);
+        }
+    }
+
+    void Hook(PlayMakerFSM fsm)
+    {
+        try
         {
             foreach (var state in fsm.FsmStates)
             {
@@ -53,7 +90,10 @@ sealed class SoundSync(PlayerSync players)
                 }
             }
         }
-        Debug.Log("Co-op: " + hooked + " player sounds shared.");
+        catch (System.Exception e)
+        {
+            Debug.Log("Co-op: could not share the sounds of " + fsm.FsmName + " on " + fsm.gameObject.name + ": " + e.Message);
+        }
     }
 
     void Send(MasterAudioPlaySound sound)

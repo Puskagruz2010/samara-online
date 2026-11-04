@@ -318,6 +318,7 @@ sealed class NetRunner : MonoBehaviour
         players.Update(Time.deltaTime);
         voice.Update();
         extras.Update();
+        sounds.Update();
         objects.Update();
         world.Update();
         fsms.Update();
@@ -339,26 +340,41 @@ sealed class NetRunner : MonoBehaviour
 
     public void OnGameReady()
     {
-        objects.OnGameReady();
-        fsms.OnGameReady();
-        world.OnGameReady();
-        money.OnGameReady();
-        phone.OnGameReady();
-        spawns.OnGameReady();
-        hoist.OnGameReady();
-        shared.OnGameReady();
-        flow.OnGameReady();
-        players.OnGameReady();
-        voice.OnGameReady();
-        sounds.OnGameReady();
-        extras.OnGameReady();
-        passenger.OnGameReady();
+        Safe("objects", objects.OnGameReady);
+        Safe("fsms", fsms.OnGameReady);
+        Safe("world", world.OnGameReady);
+        Safe("money", money.OnGameReady);
+        Safe("phone", phone.OnGameReady);
+        Safe("spawns", spawns.OnGameReady);
+        Safe("hoist", hoist.OnGameReady);
+        Safe("shared", shared.OnGameReady);
+        Safe("flow", flow.OnGameReady);
+        Safe("players", players.OnGameReady);
+        Safe("voice", voice.OnGameReady);
+        Safe("sounds", sounds.OnGameReady);
+        Safe("extras", extras.OnGameReady);
+        Safe("passenger", passenger.OnGameReady);
         if (session != null)
             session.HoldGameMessages = false;
         // A death in mortal mode deletes the save, and a desync can still kill.
         var permadeath = PlayMakerGlobals.Instance.Variables.FindFsmBool("PlayerPermaDeath");
         if (session != null && session.IsHost && permadeath != null && permadeath.Value)
             Warn("Mortal mode: dying deletes this save. It was backed up when the game started and can be restored from the co-op panel in the main menu.");
+    }
+
+    // One module failing to find what it hooks must not stop the others, and above all must not
+    // stop the session from releasing the game messages it holds while the level loads.
+    static void Safe(string name, Action step)
+    {
+        try
+        {
+            step();
+        }
+        catch (Exception e)
+        {
+            ModConsole.Error("Co-op: " + name + " failed to start, it will not sync: " + e.Message);
+            UnityEngine.Debug.Log(e.ToString());
+        }
     }
 
     void FixedUpdate()
