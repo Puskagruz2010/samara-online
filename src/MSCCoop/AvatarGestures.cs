@@ -181,9 +181,16 @@ sealed class AvatarGestures
             system.loop = true;
             system.Play(true);
         }
+        // The game drives the pee stream's emission rate from its Piss FSM (10 to 400 a second while
+        // peeing, 0 at rest), and the copy is taken at rest, so the rate is set here.
         foreach (var emitter in prop.GetComponentsInChildren<ParticleEmitter>(true))
         {
             emitter.gameObject.SetActive(true);
+            if (emitter.maxEmission < 1f)
+            {
+                emitter.minEmission = 150f;
+                emitter.maxEmission = 250f;
+            }
             emitter.emit = true;
         }
         foreach (var renderer in prop.GetComponentsInChildren<Renderer>(true))

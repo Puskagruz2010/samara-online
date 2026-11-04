@@ -114,12 +114,7 @@ class TestCommand(string marksFile) : ConsoleCommand
         // Dropped from above, so it lands moving and the co-op mod claims and streams it.
         var position = player.transform.position + forward * 5 + Vector3.up * 1.5f;
         var rotation = Quaternion.LookRotation(Vector3.Cross(forward, Vector3.up));
-        var body = root.GetComponent<Rigidbody>();
-        if (body != null)
-        {
-            body.velocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
-        }
+        Unpin(root);
         root.position = position;
         root.rotation = rotation;
         ModConsole.Print("brought " + root.name);
@@ -164,12 +159,7 @@ class TestCommand(string marksFile) : ConsoleCommand
             ModConsole.Error("test: no vehicle within 25 m");
             return;
         }
-        var body = best.GetComponent<Rigidbody>();
-        if (body != null)
-        {
-            body.velocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
-        }
+        Unpin(best);
         var forward = best.forward;
         forward.y = 0;
         if (forward.sqrMagnitude < 0.01f)
@@ -177,6 +167,24 @@ class TestCommand(string marksFile) : ConsoleCommand
         best.rotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
         best.position += Vector3.up * 1.5f;
         ModConsole.Print("flipped " + best.name);
+    }
+
+    // Far from the player the game pins a parked vehicle to the world with a FixedJoint (its LOD FSM,
+    // state OFF). Moving a pinned vehicle lets the joint yank it back to the old spot, which shakes it
+    // or throws it in the air, so the pin is removed and the vehicle stopped before it is moved.
+    static void Unpin(Transform root)
+    {
+        foreach (var joint in root.GetComponents<FixedJoint>())
+        {
+            if (joint.connectedBody == null)
+                UnityEngine.Object.DestroyImmediate(joint);
+        }
+        var body = root.GetComponent<Rigidbody>();
+        if (body != null)
+        {
+            body.velocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+        }
     }
 
     // Lines every vehicle up beside the player, a few metres apart, for a session that starts with
@@ -196,12 +204,7 @@ class TestCommand(string marksFile) : ConsoleCommand
             var root = FindRoot(name);
             if (root == null)
                 continue;
-            var body = root.GetComponent<Rigidbody>();
-            if (body != null)
-            {
-                body.velocity = Vector3.zero;
-                body.angularVelocity = Vector3.zero;
-            }
+            Unpin(root);
             var side = (slot % 2 == 0 ? 1 : -1) * (slot / 2 + 1) * 4.5f;
             root.position = player.transform.position + forward * 8 + right * side + Vector3.up * 1.5f;
             root.rotation = rotation;

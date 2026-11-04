@@ -67,6 +67,7 @@ sealed class NetObject(uint id, GameObject go)
     public Vector3 LastSentPosition;
     public double LastSentTime = double.NaN;
     public float LastHeldLocally = float.NegativeInfinity;
+    public float NoClaimUntil;
     public bool DestroyedByNetwork;
     public int NextAttachCheck;
     public NetObject AttachedTo;
