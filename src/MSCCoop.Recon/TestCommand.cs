@@ -19,7 +19,10 @@ class TestCommand(string marksFile) : ConsoleCommand
 
     public override string Help =>
         "test money AMOUNT | test needs | test keys | test tp VEHICLE|player|MARK | test bring VEHICLE | " +
-        "test mark NAME | test marks | test bringall";
+        "test mark NAME | test marks | test bringall | test god | test flip | test home";
+
+    // Where the player stands in front of the house in a fresh save.
+    static readonly Vector3 Home = new(-8.3f, 0.8f, 11.5f);
 
     static readonly string[] Vehicles = { "SATSUMA", "HAYOSIKO", "FERNDALE", "GIFU", "RCO_RUSCKO", "KEKMET", "JONNEZ" };
 
@@ -50,6 +53,17 @@ class TestCommand(string marksFile) : ConsoleCommand
                 break;
             case "bring" when target.Length > 0:
                 Bring(target);
+                break;
+            case "god":
+                GodMode.Ensure();
+                GodMode.Enabled = !GodMode.Enabled;
+                ModConsole.Print("god mode " + (GodMode.Enabled ? "ON: no death, needs stay below 80%" : "OFF"));
+                break;
+            case "flip":
+                Flip();
+                break;
+            case "home":
+                TeleportTo(Home);
                 break;
             case "bringall":
                 BringAll();
@@ -109,6 +123,60 @@ class TestCommand(string marksFile) : ConsoleCommand
         root.position = position;
         root.rotation = rotation;
         ModConsole.Print("brought " + root.name);
+    }
+
+    static void TeleportTo(Vector3 destination)
+    {
+        var player = GameObject.Find("PLAYER");
+        if (player == null || PlayMakerGlobals.Instance.Variables.FindFsmBool("PlayerSeated").Value)
+        {
+            ModConsole.Error("test: get out of the vehicle first");
+            return;
+        }
+        player.transform.position = destination;
+        ModConsole.Print("teleported to " + destination);
+    }
+
+    // Puts the nearest vehicle back on its wheels where it lies, facing the way it faced.
+    static void Flip()
+    {
+        var player = GameObject.Find("PLAYER");
+        if (player == null)
+            return;
+        Transform best = null;
+        var bestDistance = 25f;
+        foreach (var name in Vehicles)
+        {
+            foreach (var t in UnityEngine.Object.FindObjectsOfType<Transform>())
+            {
+                if (t.parent != null || !t.name.StartsWith(name, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var distance = Vector3.Distance(t.position, player.transform.position);
+                if (distance < bestDistance)
+                {
+                    best = t;
+                    bestDistance = distance;
+                }
+            }
+        }
+        if (best == null)
+        {
+            ModConsole.Error("test: no vehicle within 25 m");
+            return;
+        }
+        var body = best.GetComponent<Rigidbody>();
+        if (body != null)
+        {
+            body.velocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+        }
+        var forward = best.forward;
+        forward.y = 0;
+        if (forward.sqrMagnitude < 0.01f)
+            forward = Vector3.forward;
+        best.rotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
+        best.position += Vector3.up * 1.5f;
+        ModConsole.Print("flipped " + best.name);
     }
 
     // Lines every vehicle up beside the player, a few metres apart, for a session that starts with
