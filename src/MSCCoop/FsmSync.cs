@@ -198,9 +198,8 @@ sealed class FsmSync(ObjectRegistry registry, ObjectSync objects)
                 HookSteps(fsm, IsWindowStep);
                 break;
             // Flashlight, portable radio and car stereo power knobs.
-            case "Knob":
-            // The shower valve.
-            case "Switch":
+            // The player's own tools (the ratchet's direction switch) belong to each player alone.
+            case "Knob" or "Switch" when fsm.transform.root.name != "PLAYER":
                 HookToggle(fsm);
                 break;
             case "Usage" when fsm.GetState("Activate dash") != null:

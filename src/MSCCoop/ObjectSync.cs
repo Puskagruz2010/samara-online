@@ -14,12 +14,6 @@ sealed class ObjectSync
     const double SendInterval = 0.05;
     const float ClaimSpeed = 0.15f;
     const float ClaimAngularSpeed = 0.5f;
-    // A parked car settling on its springs moves faster than a crate ever rests, and two machines
-    // that each saw it settle would keep taking it from each other. Cars need a real push, and are
-    // not taken back right after another player let go of them.
-    const float VehicleClaimSpeed = 1f;
-    const float VehicleClaimAngularSpeed = 0.8f;
-    const float VehicleClaimCooldown = 3f;
     const float RestSpeed = 0.05f;
     const float RestAngularSpeed = 0.1f;
     const int RestStepsToRelease = 16;
@@ -183,12 +177,11 @@ sealed class ObjectSync
                 if (!obj.Owner.Held)
                     TrackRest(obj, body);
             }
-            else if (!obj.Owner.IsOwned && worldReady && !body.IsSleeping() && Time.time >= obj.NoClaimUntil)
+            else if (!obj.Owner.IsOwned && worldReady && !body.IsSleeping()
+                && (body.velocity.sqrMagnitude > ClaimSpeed * ClaimSpeed
+                    || body.angularVelocity.sqrMagnitude > ClaimAngularSpeed * ClaimAngularSpeed))
             {
-                var speed = obj.IsVehicle ? VehicleClaimSpeed : ClaimSpeed;
-                var angular = obj.IsVehicle ? VehicleClaimAngularSpeed : ClaimAngularSpeed;
-                if (body.velocity.sqrMagnitude > speed * speed || body.angularVelocity.sqrMagnitude > angular * angular)
-                    ClaimMoving(obj);
+                ClaimMoving(obj);
             }
         }
 
@@ -969,8 +962,6 @@ sealed class ObjectSync
     {
         if (Diagnostics.Logging)
             Diagnostics.Log("owner " + obj.Id.ToString("x8") + " " + obj.Key + " -> " + info.Owner + " seq=" + info.Seq + " held=" + info.Held);
-        if (obj.IsVehicle && info.Owner != Local && obj.Owner.Owner != info.Owner)
-            obj.NoClaimUntil = Time.time + VehicleClaimCooldown;
         obj.Owner = info;
         obj.Pending = false;
         obj.RestSteps = 0;

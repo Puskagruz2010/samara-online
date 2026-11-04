@@ -12,7 +12,7 @@ public class CoopMod : Mod
 {
     public override string ID => "SamaraOnline";
     public override string Name => "Samara Online";
-    public override string Version => "0.4.2-samara";
+    public override string Version => "0.4.3-samara";
     public override string Author => "kubilay (MSC Co-op), Samara fork";
     public override string Description => "Co-op over Steam with proximity voice. Fork of MSC Co-op (CC BY-NC-SA 4.0).";
 
