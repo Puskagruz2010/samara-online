@@ -17,6 +17,11 @@ sealed class ObjectSync
     const float VehicleClaimDistance = 0.1f;
     const float VehicleClaimAngle = 3f;
     const int PushCheckInterval = 10;
+    const float RunawaySpeed = 120f;
+    const float RunawaySpin = 40f;
+    const float SaneSpeed = 70f;
+    const int SanePoseInterval = 25;
+    const int RunawayReportInterval = 50;
     const double ClockSnap = 0.05;
     const double ClockSmoothing = 0.05;
     const float RestSpeed = 0.05f;
@@ -70,6 +75,7 @@ sealed class ObjectSync
     FsmGameObject pickedObject;
     bool built;
     bool worldReady;
+    int builtCount;
     int fixedStep;
     int sendCursor;
     int sendTick;
@@ -124,6 +130,7 @@ sealed class ObjectSync
             return;
         registry.Build();
         built = true;
+        builtCount = registry.Objects.Count;
         HookPickup();
         FindDeliveries();
         currentVehicle = PlayMakerGlobals.Instance.Variables.FindFsmString("PlayerCurrentVehicle");
@@ -139,7 +146,7 @@ sealed class ObjectSync
             return;
         }
         var w = session.BeginMessage(MessageType.ObjectHello);
-        w.WriteUShort((ushort)registry.Objects.Count);
+        w.WriteUShort((ushort)builtCount);
         w.WriteUInt(registry.Hash);
         w.WriteUShort((ushort)registry.Fsms.Count);
         w.WriteUInt(registry.FsmHash);
@@ -181,6 +188,8 @@ sealed class ObjectSync
             }
             if (body == null || body.isKinematic)
                 continue;
+            if (obj.IsVehicle && !KeepOnTheGround(obj, body))
+                continue;
 
             if (obj.Owner.Owner == Local)
             {
@@ -207,7 +216,11 @@ sealed class ObjectSync
                 continue;
             if (!obj.AttachedTo.Proxy)
             {
-                EndProxy(obj);
+                if (obj.Proxy)
+                {
+                    FitToVehicle(obj);
+                    EndProxy(obj);
+                }
                 continue;
             }
             if (!obj.Proxy)
@@ -217,6 +230,58 @@ sealed class ObjectSync
             }
             FollowVehicle(obj, body);
         }
+    }
+
+    // A part goes back to its joint exactly where the joint expects it. Left where smoothing last
+    // put it, a few centimetres off the car it hangs on, the joint pulls the gap shut in one step
+    // and throws the car.
+    static void FitToVehicle(NetObject obj)
+    {
+        var vehicle = obj.AttachedTo.Go.transform;
+        obj.LocalPosition = obj.LocalPositionTarget;
+        obj.LocalRotation = obj.LocalRotationTarget;
+        obj.Go.transform.position = vehicle.position + vehicle.rotation * obj.LocalPosition;
+        obj.Go.transform.rotation = vehicle.rotation * obj.LocalRotation;
+    }
+
+    // No vehicle in the game reaches these speeds by driving, only by being flung by a joint or by
+    // two bodies placed inside each other. One that does is stopped and put back where it last was
+    // at a normal speed, and the log says so, so the cause can be found from the event log.
+    bool KeepOnTheGround(NetObject obj, Rigidbody body)
+    {
+        var position = body.position;
+        var speed = body.velocity.sqrMagnitude;
+        var spin = body.angularVelocity.sqrMagnitude;
+        var thrown = float.IsNaN(speed) || float.IsNaN(spin) || float.IsNaN(position.x) || float.IsNaN(position.y) || float.IsNaN(position.z)
+            || speed > RunawaySpeed * RunawaySpeed || spin > RunawaySpin * RunawaySpin;
+        if (!thrown)
+        {
+            if (fixedStep >= obj.NextSanePose && speed < SaneSpeed * SaneSpeed)
+            {
+                obj.NextSanePose = fixedStep + SanePoseInterval;
+                obj.SanePosition = position;
+                obj.SaneRotation = body.rotation;
+                obj.HasSanePose = true;
+            }
+            return true;
+        }
+        if (fixedStep >= obj.NextRunawayReport)
+        {
+            obj.NextRunawayReport = fixedStep + RunawayReportInterval;
+            var text = obj.Key + " was thrown at " + (float.IsNaN(speed) ? "an invalid speed" : (int)Mathf.Sqrt(speed) + " m/s")
+                + " (owner " + obj.Owner.Owner + ", held " + obj.Owner.Held + ") and was put back.";
+            ModConsole.Warning("Co-op: " + text);
+            if (Diagnostics.Logging)
+                Diagnostics.Log("runaway " + obj.Id.ToString("x8") + " " + text);
+        }
+        if (obj.HasSanePose)
+        {
+            obj.Go.transform.position = obj.SanePosition;
+            obj.Go.transform.rotation = obj.SaneRotation;
+        }
+        body.velocity = Vector3.zero;
+        body.angularVelocity = Vector3.zero;
+        return false;
     }
 
     // A parked car handed back to local physics settles on its springs faster than the claim speed,
@@ -917,8 +982,10 @@ sealed class ObjectSync
                     pendingSnapshots.Add(from);
                     break;
                 }
-                if (count != registry.Objects.Count || hash != registry.Hash)
-                    ModConsole.Warning("Co-op: player " + from.Slot + " tracks " + count + " objects, host tracks " + registry.Objects.Count + ". Some objects will not sync.");
+                // Compared as both were right after loading: items eaten or used up since then are gone
+                // from the host's list but not from the count the player took when it finished loading.
+                if (count != builtCount || hash != registry.Hash)
+                    ModConsole.Warning("Co-op: player " + from.Slot + " tracks " + count + " objects, host tracks " + builtCount + ". Some objects will not sync.");
                 if (fsmCount != registry.Fsms.Count || fsmHash != registry.FsmHash)
                     ModConsole.Warning("Co-op: player " + from.Slot + " tracks " + fsmCount + " FSMs, host tracks " + registry.Fsms.Count + ". Some doors and parts will not sync.");
                 SendSnapshot(from);

@@ -13,6 +13,7 @@ sealed class PassengerSeat(ObjectRegistry registry)
     const string Button = "DrivingMode";
     const string Prompt = "PASSENGER";
     const string InCabinState = "Press return";
+    const string DrivingState = "Player in car";
     const float ExitSideways = 1.3f;
 
     sealed class Cabin
@@ -30,6 +31,7 @@ sealed class PassengerSeat(ObjectRegistry registry)
     FsmString currentVehicle;
     FsmString interaction;
     Cabin seated;
+    Cabin offered;
     Transform seat;
     Vector3 seatedOffset;
     bool prompting;
@@ -40,6 +42,7 @@ sealed class PassengerSeat(ObjectRegistry registry)
     {
         cabins.Clear();
         seated = null;
+        offered = null;
         player = null;
     }
 
@@ -96,6 +99,7 @@ sealed class PassengerSeat(ObjectRegistry registry)
             return;
         if (seated != null)
         {
+            offered = null;
             if (seat == null || cInput.GetKeyDown(Button))
                 Stand();
             else
@@ -104,6 +108,12 @@ sealed class PassengerSeat(ObjectRegistry registry)
         }
 
         var cabin = string.IsNullOrEmpty(currentVehicle.Value) ? CabinOffered() : null;
+        // The key that takes the driver's seat moves the seat's own logic on before the game names
+        // the current vehicle. Read after that in the same frame, the cabin looks free and the same
+        // key press would also seat the player as a passenger, leaving them held by both seats. The
+        // passenger seat is only taken if it was already on offer before the key went down.
+        var wasOffered = offered == cabin;
+        offered = cabin;
         if (cabin == null)
         {
             if (prompting && interaction.Value == Prompt)
@@ -116,7 +126,7 @@ sealed class PassengerSeat(ObjectRegistry registry)
             interaction.Value = Prompt;
             prompting = true;
         }
-        if (cInput.GetKeyDown(Button))
+        if (wasOffered && cInput.GetKeyDown(Button))
             Sit(cabin);
     }
 
@@ -125,7 +135,8 @@ sealed class PassengerSeat(ObjectRegistry registry)
     {
         foreach (var cabin in cabins)
         {
-            if (cabin.Trigger.ActiveStateName == InCabinState && cabin.Drive.ActiveStateName != InCabinState)
+            var drive = cabin.Drive.ActiveStateName;
+            if (cabin.Trigger.ActiveStateName == InCabinState && drive != InCabinState && drive != DrivingState)
                 return cabin;
         }
         return null;

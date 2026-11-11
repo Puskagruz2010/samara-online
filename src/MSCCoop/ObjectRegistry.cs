@@ -68,6 +68,11 @@ sealed class NetObject(uint id, GameObject go)
     public Vector3 RestPosition;
     public Quaternion RestRotation;
     public int NextPushCheck;
+    public bool HasSanePose;
+    public Vector3 SanePosition;
+    public Quaternion SaneRotation;
+    public int NextSanePose;
+    public int NextRunawayReport;
     public Vector3 LastSentPosition;
     public double LastSentTime = double.NaN;
     public float LastHeldLocally = float.NegativeInfinity;

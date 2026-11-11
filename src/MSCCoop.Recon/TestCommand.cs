@@ -19,7 +19,7 @@ class TestCommand(string marksFile) : ConsoleCommand
 
     public override string Help =>
         "test money AMOUNT | test needs | test keys | test tp VEHICLE|player|MARK | test bring VEHICLE | " +
-        "test mark NAME | test marks | test bringall | test god | test flip | test home";
+        "test mark NAME | test marks | test bringall | test god | test flip | test home | test fix";
 
     // Where the player stands in front of the house in a fresh save.
     static readonly Vector3 Home = new(-8.3f, 0.8f, 11.5f);
@@ -61,6 +61,9 @@ class TestCommand(string marksFile) : ConsoleCommand
                 break;
             case "flip":
                 Flip();
+                break;
+            case "fix":
+                Fix();
                 break;
             case "home":
                 TeleportTo(Home);
@@ -167,6 +170,92 @@ class TestCommand(string marksFile) : ConsoleCommand
         best.rotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
         best.position += Vector3.up * 1.5f;
         ModConsole.Print("flipped " + best.name);
+    }
+
+    // Fills every vehicle's tank, the Satsuma's oil, coolant, brake and clutch fluid, charges its
+    // battery and stands up vehicles lying on their side or roof. These are the values the co-op mod
+    // shares, so running it on one machine is enough. Worn or broken parts and dented panels stay as
+    // they are.
+    static void Fix()
+    {
+        var filled = 0;
+        var roots = new List<Transform>();
+        var database = GameObject.Find("Database");
+        if (database != null)
+            roots.Add(database.transform);
+        foreach (var t in UnityEngine.Object.FindObjectsOfType<Transform>())
+        {
+            if (t.parent == null && IsVehicle(t.name))
+                roots.Add(t);
+        }
+        foreach (var root in roots)
+        {
+            foreach (var fsm in root.GetComponentsInChildren<PlayMakerFSM>(true))
+            {
+                if (fsm.FsmName != "Data")
+                    continue;
+                var vars = fsm.FsmVariables;
+                var installed = vars.FindFsmBool("Installed");
+                if (installed != null && !installed.Value)
+                    continue;
+                var capacity = vars.FindFsmFloat("MaxCapacity");
+                var gifu = root.name.StartsWith("GIFU", StringComparison.OrdinalIgnoreCase);
+                if (capacity != null && capacity.Value > 0)
+                    filled += Set(vars, "FuelLevel", capacity.Value);
+                else if (gifu)
+                    filled += Set(vars, "FuelLevel", 300);
+                if (vars.FindFsmFloat("OilContamination") != null)
+                {
+                    filled += Set(vars, "Oil", 3);
+                    filled += Set(vars, "OilContamination", 0);
+                }
+                if (root == roots[0] && database != null)
+                {
+                    filled += Set(vars, "Water", fsm.gameObject.name == "Racing Radiator" ? 7 : 5.4f);
+                    filled += Set(vars, "BrakeFluidF", 1);
+                    filled += Set(vars, "BrakeFluidR", 1);
+                    filled += Set(vars, "ClutchFluid", 0.5f);
+                    var maxCharge = vars.FindFsmFloat("MaxCharge");
+                    if (maxCharge != null && maxCharge.Value > 0)
+                        filled += Set(vars, "Charge", maxCharge.Value);
+                }
+            }
+        }
+
+        var stood = 0;
+        foreach (var root in roots)
+        {
+            if (root.name == "Database" || root.up.y > 0.5f)
+                continue;
+            Unpin(root);
+            var forward = root.forward;
+            forward.y = 0;
+            if (forward.sqrMagnitude < 0.01f)
+                forward = Vector3.forward;
+            root.rotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
+            root.position += Vector3.up * 1.5f;
+            stood++;
+        }
+        ModConsole.Print("fixed: " + filled + " fuel, fluid and charge levels topped up, " + stood + " vehicle(s) put back on their wheels");
+    }
+
+    static bool IsVehicle(string name)
+    {
+        foreach (var vehicle in Vehicles)
+        {
+            if (name.StartsWith(vehicle, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
+    static int Set(FsmVariables vars, string name, float value)
+    {
+        var v = vars.FindFsmFloat(name);
+        if (v == null || Mathf.Approximately(v.Value, value))
+            return 0;
+        v.Value = value;
+        return 1;
     }
 
     // Far from the player the game pins a parked vehicle to the world with a FixedJoint (its LOD FSM,
