@@ -14,6 +14,11 @@ sealed class ObjectSync
     const double SendInterval = 0.05;
     const float ClaimSpeed = 0.15f;
     const float ClaimAngularSpeed = 0.5f;
+    const float VehicleClaimDistance = 0.1f;
+    const float VehicleClaimAngle = 3f;
+    const int PushCheckInterval = 10;
+    const double ClockSnap = 0.05;
+    const double ClockSmoothing = 0.05;
     const float RestSpeed = 0.05f;
     const float RestAngularSpeed = 0.1f;
     const int RestStepsToRelease = 16;
@@ -70,6 +75,7 @@ sealed class ObjectSync
     int sendTick;
     double nextSend;
     double nextSeatCheck;
+    double unityToHost = double.NaN;
     FsmString currentVehicle;
 
     bool Active => session != null && session.State == SessionState.Connected && built;
@@ -80,6 +86,7 @@ sealed class ObjectSync
     public void Attach(Session newSession)
     {
         session = newSession;
+        unityToHost = double.NaN;
         table.Clear();
         pendingSnapshots.Clear();
         session.MessageReceived += OnMessage;
@@ -147,7 +154,10 @@ sealed class ObjectSync
         for (var i = 0; i < claimNextStep.Count; i++)
             Claim(claimNextStep[i], held: false);
         claimNextStep.Clear();
-        var hostTime = session.HostTime;
+        // The session clock only moves once a frame, and frames do not line up with physics steps:
+        // read as it is, copies would be placed for moments up to a whole frame apart from step to
+        // step and move in jerks. Each step is placed for its own time instead.
+        var hostTime = double.IsNaN(unityToHost) ? session.HostTime : Time.fixedTime + unityToHost;
         var dt = Time.fixedDeltaTime;
 
         var objects = registry.Objects;
@@ -177,11 +187,15 @@ sealed class ObjectSync
                 if (!obj.Owner.Held)
                     TrackRest(obj, body);
             }
-            else if (!obj.Owner.IsOwned && worldReady && !body.IsSleeping()
-                && (body.velocity.sqrMagnitude > ClaimSpeed * ClaimSpeed
-                    || body.angularVelocity.sqrMagnitude > ClaimAngularSpeed * ClaimAngularSpeed))
+            else if (!obj.Owner.IsOwned && worldReady)
             {
-                ClaimMoving(obj);
+                var moving = !body.IsSleeping()
+                    && (body.velocity.sqrMagnitude > ClaimSpeed * ClaimSpeed
+                        || body.angularVelocity.sqrMagnitude > ClaimAngularSpeed * ClaimAngularSpeed);
+                if (!moving)
+                    obj.HasRestPose = false;
+                else if (!obj.IsVehicle || HasLeftRest(obj, body))
+                    ClaimMoving(obj);
             }
         }
 
@@ -203,6 +217,23 @@ sealed class ObjectSync
             }
             FollowVehicle(obj, body);
         }
+    }
+
+    // A parked car handed back to local physics settles on its springs faster than the claim speed,
+    // so every machine would take it in turn and it would shake. Bobbing in place is left alone; a
+    // car is only taken once it has really gone somewhere, which bounds how far the copies can
+    // drift apart with nobody simulating it.
+    static bool HasLeftRest(NetObject obj, Rigidbody body)
+    {
+        if (!obj.HasRestPose)
+        {
+            obj.HasRestPose = true;
+            obj.RestPosition = body.position;
+            obj.RestRotation = body.rotation;
+            return false;
+        }
+        return (body.position - obj.RestPosition).sqrMagnitude > VehicleClaimDistance * VehicleClaimDistance
+            || Quaternion.Angle(body.rotation, obj.RestRotation) > VehicleClaimAngle;
     }
 
     // Body panels, doors, seats, the battery and the fuel tank stay rigidbodies after they are
@@ -278,6 +309,7 @@ sealed class ObjectSync
         if (!Active)
             return;
         var hostTime = session.HostTime;
+        TrackPhysicsClock(hostTime);
         if (hostTime >= nextSeatCheck)
         {
             nextSeatCheck = hostTime + SeatCheckInterval;
@@ -294,6 +326,18 @@ sealed class ObjectSync
         SendStates(hostTime);
         if (++sendTick % VehicleSendDivider == 0)
             SendVehicles();
+    }
+
+    // How far the session clock is ahead of the game's own clock, which is the one physics steps
+    // are counted on. Smoothed, since the session clock is read at a slightly different point of
+    // every frame; followed at once after a hitch or while the game runs at another speed.
+    void TrackPhysicsClock(double hostTime)
+    {
+        var offset = hostTime - Time.time;
+        if (double.IsNaN(unityToHost) || System.Math.Abs(offset - unityToHost) > ClockSnap || Mathf.Abs(Time.timeScale - 1f) > 0.01f)
+            unityToHost = offset;
+        else
+            unityToHost += (offset - unityToHost) * ClockSmoothing;
     }
 
     void SendVehicles()
@@ -702,12 +746,17 @@ sealed class ObjectSync
     // whoever simulates the proxy, where the push is real.
     void ClaimMoving(NetObject obj)
     {
+        if (fixedStep < obj.NextPushCheck)
+            return;
         var pusher = FindPusher(obj);
         if (pusher == Ownership.NoOwner)
         {
             Claim(obj, held: false);
             return;
         }
+        // Only the host hands the object to the pusher; everywhere else it keeps moving until the
+        // host's answer arrives, and looking for the pusher again on every step is wasted work.
+        obj.NextPushCheck = fixedStep + PushCheckInterval;
         if (!session.IsHost || !table.TryClaim(obj.Id, pusher, false, out var info))
             return;
         ApplyOwner(obj, info);
@@ -781,6 +830,9 @@ sealed class ObjectSync
         var objects = registry.Objects;
         if (objects.Count == 0)
             return;
+        // A body is where its last physics step left it, so that step's time goes with the pose, not
+        // the time of the frame that happens to send it.
+        var stateTime = Time.fixedTime + unityToHost;
         var packets = 0;
         var start = sendCursor;
         BitWriter w = null;
@@ -808,7 +860,7 @@ sealed class ObjectSync
             }
             if (w == null)
             {
-                w = BeginStates(hostTime, Local, out countPosition);
+                w = BeginStates(stateTime, Local, out countPosition);
                 count = 0;
             }
             // The game carries some held objects kinematically, the engine block for one, so their
@@ -965,6 +1017,7 @@ sealed class ObjectSync
         obj.Owner = info;
         obj.Pending = false;
         obj.RestSteps = 0;
+        obj.HasRestPose = false;
         if (obj.AttachedTo != null)
             return;
         var heldElsewhere = info.IsOwned && info.Owner != Local && info.Held;
@@ -1320,6 +1373,7 @@ sealed class ObjectSync
             return;
         obj.Go.transform.position = ToUnity(position);
         obj.Go.transform.rotation = ToUnity(rotation);
+        obj.HasRestPose = false;
         if (body.isKinematic)
             return;
         body.velocity = Vector3.zero;

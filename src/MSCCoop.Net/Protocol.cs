@@ -3,7 +3,7 @@ namespace MSCCoop.Net;
 public static class Protocol
 {
     public const ushort Magic = 0x4D43;
-    public const byte Version = 112; // Samara Online fork: never talks to vanilla MSC Co-op
+    public const byte Version = 113; // Samara Online fork: never talks to vanilla MSC Co-op
     public const int HeaderBits = 24;
     public const int MaxPlayers = 4;
     public const int MaxNameChars = 32;

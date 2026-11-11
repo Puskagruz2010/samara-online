@@ -31,6 +31,7 @@ public class QuantizeTests
     [Theory]
     [InlineData(10, 0.25f)]
     [InlineData(11, 0.12f)]
+    [InlineData(13, 0.06f)]
     public void RotationErrorIsBounded(int bits, float maxDegrees)
     {
         var random = new Random(3);

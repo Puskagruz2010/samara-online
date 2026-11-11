@@ -29,10 +29,10 @@ public struct ObjectState
 
 public static class ObjectMessages
 {
-    public const int RotationBits = 10;
+    public const int RotationBits = 13;
     public const int SlotBits = 3;
     public const int CountBits = 8;
-    public const int MaxStateBits = 32 + 66 + 32 + 36 + 30;
+    public const int MaxStateBits = 32 + 66 + 41 + 36 + 30;
 
     public static void WriteOwner(BitWriter w, uint id, OwnerInfo info)
     {

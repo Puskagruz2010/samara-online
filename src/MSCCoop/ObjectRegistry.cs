@@ -64,6 +64,10 @@ sealed class NetObject(uint id, GameObject go)
     public RigidbodyInterpolation GameInterpolation;
     public SnapshotBuffer Buffer;
     public int RestSteps;
+    public bool HasRestPose;
+    public Vector3 RestPosition;
+    public Quaternion RestRotation;
+    public int NextPushCheck;
     public Vector3 LastSentPosition;
     public double LastSentTime = double.NaN;
     public float LastHeldLocally = float.NegativeInfinity;
